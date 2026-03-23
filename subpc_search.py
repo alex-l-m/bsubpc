@@ -37,5 +37,6 @@ for entry in hits:
     mol_id = entry.identifier
 
     outrow = {'mol_id': mol_id, 'formal_charge': formal_charge, 'mol2_path': mol2_output_path}
+    outrows.append(outrow)
 
 pd.DataFrame(outrows).to_csv('search_results.csv', index=False)
