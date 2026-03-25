@@ -15,19 +15,13 @@ import numpy as np
 from rdkit.Chem.rdchem import Mol
 from scipy.spatial.transform import Rotation
 
-from match import label_core_atoms
+from match import label_core_atoms, assert_labeled
 
 
 VERTICAL_AXIS = np.array([0.0, 0.0, 1.0])
 REFERENCE_LABEL = "pyrrole_nitrogen_1"
 BORON_LABEL = "boron"
 
-
-
-def assert_labeled(mol: Mol) -> None:
-    """Assert that ``mol`` carries BsubPc match labels."""
-    if not any(atom.HasProp("bsubpc_idx") for atom in mol.GetAtoms()):
-        raise ValueError("molecule does not have BsubPc labels; run label_core_atoms first")
 
 
 def _atom_index_by_label(mol: Mol, label: str) -> int:
