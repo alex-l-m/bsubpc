@@ -23,18 +23,23 @@ except FileExistsError:
 hits = subpc_search.search()
 print(f'Found {len(hits)} hits')
 
+seen = set()
 outrows = []
-for entry in hits:
-    mol2_output_path = f'{mol2_output_dir_name}/{entry.identifier}.mol2'
-    # Molecule is the largest connected component
-    molecule_object = entry.molecule
-    heaviest_component = molecule_object.heaviest_component
+for hit in hits:
+    mol_id = hit.identifier
+    if mol_id in seen:
+        continue
+    seen.add(mol_id)
+    mol2_output_path = f'{mol2_output_dir_name}/{mol_id}.mol2'
+    molecule = hit.match_components()[0]
+    if template_substructure.nmatch_molecule(molecule) != 1:
+            print(f"Skipping {mol_id}: != 1 match in extracted component")
+            continue
     # Save as mol2
-    ccdc.io.MoleculeWriter(mol2_output_path).write(heaviest_component)
-    print(f'Wrote {entry.identifier} to {mol2_output_path}')
+    ccdc.io.MoleculeWriter(mol2_output_path).write(molecule)
+    print(f'Wrote {mol_id} to {mol2_output_path}')
 
-    formal_charge = heaviest_component.formal_charge
-    mol_id = entry.identifier
+    formal_charge = molecule.formal_charge
 
     outrow = {'mol_id': mol_id, 'formal_charge': formal_charge, 'mol2_path': mol2_output_path}
     outrows.append(outrow)
