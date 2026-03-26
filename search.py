@@ -1,5 +1,5 @@
 '''Search the Cambridge Crystallography Database for BsubPc's and save them as mol2 files'''
-from os import mkdir
+from pathlib import Path
 import pandas as pd
 import ccdc.io
 import ccdc.search
@@ -14,14 +14,12 @@ template_substructure = ccdc.search.SMARTSSubstructure(template_smarts)
 subpc_search = ccdc.search.SubstructureSearch()
 subpc_search.add_substructure(template_substructure)
 
-# Execute search and save mol2 files
-mol2_output_dir_name = 'search_results'
-try:
-    mkdir(mol2_output_dir_name)
-except FileExistsError:
-    pass
+# Execute search and save mol2 files and cif files
+mol2_output_dir = Path('csd_molecules')
+mol2_output_dir.mkdir(exist_ok=True)
+cif_output_dir = Path('csd_crystals')
+cif_output_dir.mkdir(exist_ok=True)
 hits = subpc_search.search()
-print(f'Found {len(hits)} hits')
 
 seen = set()
 outrows = []
@@ -30,18 +28,19 @@ for hit in hits:
     if mol_id in seen:
         continue
     seen.add(mol_id)
-    mol2_output_path = f'{mol2_output_dir_name}/{mol_id}.mol2'
+    mol2_output_path = mol2_output_dir / f'{mol_id}.mol2'
+    cif_output_path = cif_output_dir / f'{mol_id}.cif'
     molecule = hit.match_components()[0]
     if template_substructure.nmatch_molecule(molecule) != 1:
-            print(f"Skipping {mol_id}: != 1 match in extracted component")
             continue
     # Save as mol2
     ccdc.io.MoleculeWriter(mol2_output_path).write(molecule)
-    print(f'Wrote {mol_id} to {mol2_output_path}')
+    # Save as cif
+    ccdc.io.CrystalWriter(cif_output_path).write(hit.crystal)
 
     formal_charge = molecule.formal_charge
 
-    outrow = {'mol_id': mol_id, 'formal_charge': formal_charge, 'mol2_path': mol2_output_path}
+    outrow = {'mol_id': mol_id, 'formal_charge': formal_charge, 'mol2_path': mol2_output_path, 'cif_path': cif_output_path}
     outrows.append(outrow)
 
 pd.DataFrame(outrows).to_csv('search_results.csv', index=False)
