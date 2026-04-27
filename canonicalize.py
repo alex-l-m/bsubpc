@@ -94,6 +94,13 @@ def rotate_around_vertical(mol: Mol) -> None:
         rotation = Rotation.from_rotvec(-angle * VERTICAL_AXIS)
         _set_positions(conformer, rotation.apply(pos))
 
+def fix_core_handedness(mol):
+    handed_idx = _atom_index_by_label(mol, "pyrrole_nitrogen_3")
+    for conformer in mol.GetConformers():
+        pos = conformer.GetPositions()
+        if pos[handed_idx, 1] < 0:
+            pos[:, 1] *= -1.0
+            _set_positions(conformer, pos)
 
 def canonicalize_bsubpc(mol: Mol) -> None:
     """Label, center, and rotate ``mol`` into the canonical BsubPc frame in-place."""
@@ -101,3 +108,4 @@ def canonicalize_bsubpc(mol: Mol) -> None:
     center_on_boron(mol)
     rotate_to_vertical(mol)
     rotate_around_vertical(mol)
+    fix_core_handedness(mol)
