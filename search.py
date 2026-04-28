@@ -1,4 +1,4 @@
-'''Search the Cambridge Crystallography Database for BsubPc's and save them as mol2 files'''
+'''Search the Cambridge Crystallography Database for BsubPc's and save them as mol2 files.'''
 from pathlib import Path
 import pandas as pd
 import ccdc.io
@@ -40,7 +40,21 @@ for hit in hits:
 
     formal_charge = molecule.formal_charge
 
-    outrow = {'mol_id': mol_id, 'formal_charge': formal_charge, 'mol2_path': mol2_output_path, 'cif_path': cif_output_path}
+    outrow = {
+        # Original search_results.csv columns.
+        'mol_id': mol_id,
+        'formal_charge': formal_charge,
+        'mol2_path': str(mol2_output_path),
+        'cif_path': str(cif_output_path),
+        # Compatibility columns for oled-database scripts.  In this search, the
+        # CSD hit identifier is also the structure entry/refcode that the
+        # extractor should read back from the CSD.
+        'structure_entry': mol_id,
+        'structure_path': str(mol2_output_path),
+        'csd_refcode': mol_id,
+        'entry': mol_id,
+    }
     outrows.append(outrow)
 
-pd.DataFrame(outrows).to_csv('search_results.csv', index=False)
+outdf = pd.DataFrame(outrows)
+outdf.to_csv('search_results.csv', index=False)

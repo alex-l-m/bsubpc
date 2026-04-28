@@ -1,0 +1,3 @@
+run_csd_python_api search.py
+python process_search_results.py
+run_csd_python_api extract_csd_diagram_and_molecule_tables.py search_results.csv csd_tables
