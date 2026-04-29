@@ -31,11 +31,15 @@ in
   # https://github.com/NixOS/nixpkgs/issues/499166
   documentation.doc.enable = false;
 
-  # A bit of breathing room for uv caches, R packages, compiled dependencies,
-  # and local projects.
-  virtualisation.diskSize = 30 * 1024; # MiB
-  virtualisation.memorySize = 4096;    # MiB
-  virtualisation.cores = 2;
+  # A very large amount of disk space to hold the CSD database
+  virtualisation.diskSize = 64 * 1024; # MiB
+
+  # Only like an eigth of my RAM; I don't think I'm doing anything
+  # memory-constrained
+  virtualisation.memorySize = 8 * 1024;    # MiB
+
+  # Half my cores
+  virtualisation.cores = 16;
 
   virtualisation.sharedDirectories.vmShare = {
     source = "/home/alexlm/vm-shared";
