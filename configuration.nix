@@ -37,6 +37,12 @@ in
   virtualisation.memorySize = 4096;    # MiB
   virtualisation.cores = 2;
 
+  virtualisation.sharedDirectories.vmShare = {
+    source = "/home/alexlm/vm-shared";
+    target = "/mnt/host";
+    securityModel = "none";
+  };
+
   # This module provides QEMU-VM-specific options such as
   # virtualisation.forwardPorts.
   imports = [
