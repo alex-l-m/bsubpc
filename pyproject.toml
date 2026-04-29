@@ -3,11 +3,12 @@ name = "bsubpc"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "ase>=3.27.0",
-    "rdkit>=2025.9.4",
+    "numpy>=2.3.5",
     "pandas>=3.0.1",
+    "rdkit>=2025.9.4",
     "scipy>=1.17.1",
     "tblite>=0.5.0",
 ]
