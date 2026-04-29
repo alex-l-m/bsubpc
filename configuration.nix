@@ -9,13 +9,46 @@ let
   # Runtime libraries that help generic Linux binaries / PyPI wheels run on
   # NixOS. This is plumbing, not Python dependency management.
   runtimeLibs = with pkgs; [
+    # Core generic Linux / Python wheel runtime libraries.
     stdenv.cc.cc.lib  # libstdc++.so.6, libgcc_s.so.1
     zlib
+    zstd
     bzip2
     xz
     openssl
     libffi
     sqlite
+    expat
+
+    # Qt / X11 / XCB runtime libraries needed by the CCDC installer.
+    libxkbcommon
+    libxcb
+    libxcb-util
+    libxcb-wm
+    libxcb-image
+    libxcb-keysyms
+    libxcb-render-util
+    xcb-util-cursor
+
+    libx11
+    libxext
+    libxrender
+    libxi
+    libxfixes
+    libxcursor
+    libxrandr
+    libxinerama
+    libxau
+    libxdmcp
+    libsm
+    libice
+
+    # Font/GUI-adjacent libraries commonly needed by bundled Qt binaries.
+    fontconfig
+    freetype
+    glib
+    dbus
+    libGL
   ];
 in
 {
