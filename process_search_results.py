@@ -8,7 +8,8 @@ This script:
 - writes an SVG diagram;
 - appends one row per atom to ``atom_table.csv`
 - saves a canonicalized ``.mol`` file for each successfully processed structure.
-- saves a symmetry-expanded crystal extxyz file for each successfully processed structure.
+- saves the selected P1 crystal cell as an extxyz file for each successfully
+  processed structure.
 
 Files that RDKit cannot read/sanitize, or that fail any later processing step, are
 skipped and logged in ``processing_summary.csv``.
@@ -69,7 +70,7 @@ def passing_csd_diagram_ids(path: Path) -> set[str]:
 
 
 def load_crystal(path: Path):
-    """Load the symmetry-expanded periodic unit cell used for force calculation."""
+    """Load the selected P1 periodic unit cell used for force calculation."""
     atoms = read(path, format="cif")
     atoms.set_pbc((True, True, True))
     return atoms

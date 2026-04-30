@@ -80,18 +80,50 @@ def _molecule_to_cif_mapping(atoms, cif_path: Path) -> list[dict]:
     ]
 
 
+def _base_atom_site_label(label: str) -> str:
+    """Strip CCDC's numeric P1 expansion suffix from an atom-site label."""
+    base, separator, suffix = label.rpartition('_')
+    if separator and suffix.isdigit():
+        return base
+    return label
+
+
 def _validate_cif_matches_molecule(molecule_atoms, cif_path: Path) -> None:
-    """Require the written CIF atom sites to match the selected crystal molecule."""
+    """Require the written CIF atom sites to contain the selected crystal molecule."""
     molecule_labels = [atom.label for atom in molecule_atoms]
+    molecule_label_set = set(molecule_labels)
     cif_labels = _cif_atom_site_labels(cif_path)
-    if set(cif_labels) != set(molecule_labels):
-        missing_from_cif = sorted(set(molecule_labels) - set(cif_labels))
-        extra_in_cif = sorted(set(cif_labels) - set(molecule_labels))
+    cif_base_labels = {_base_atom_site_label(label) for label in cif_labels}
+    if not molecule_label_set.issubset(cif_base_labels):
+        missing_from_cif = sorted(molecule_label_set - cif_base_labels)
         raise ValueError(
             'written CIF atom sites do not match selected disorder molecule; '
-            f'missing from CIF: {", ".join(missing_from_cif[:10])}; '
-            f'extra in CIF: {", ".join(extra_in_cif[:10])}'
+            f'missing from CIF: {", ".join(missing_from_cif[:10])}'
         )
+    extra_base_labels = sorted(cif_base_labels - molecule_label_set)
+    if extra_base_labels:
+        raise ValueError(
+            'written CIF atom sites include labels outside the selected disorder molecule; '
+            f'extra labels: {", ".join(extra_base_labels[:10])}'
+        )
+
+
+def _validate_no_disordered_heavy_atoms(crystal) -> None:
+    """Reject crystal structures with any non-hydrogen disorder-group atoms."""
+    if not crystal.has_disorder:
+        return
+
+    disordered_heavy_atom_labels = set()
+    for assembly in crystal.disorder.assemblies:
+        for group in assembly.groups:
+            disordered_heavy_atom_labels.update(
+                atom.label
+                for atom in group.atoms
+                if atom.atomic_symbol != 'H'
+            )
+    if disordered_heavy_atom_labels:
+        labels = ', '.join(sorted(disordered_heavy_atom_labels)[:10])
+        raise ValueError(f'crystal has disordered heavy atoms: {labels}')
 
 
 def _validate_min_distance(atoms) -> None:
@@ -131,18 +163,23 @@ for hit in hits:
             raise ValueError('matched component does not contain exactly one BsubPc template match')
 
         atoms = _validated_atoms(molecule)
-        crystal_molecule = hit.crystal.molecule
+        crystal = hit.crystal
+        _validate_no_disordered_heavy_atoms(crystal)
+        # crystal.molecule is the CSD-selected disorder state, not necessarily
+        # the same as the crystal's editable molecule used by CrystalWriter.
+        crystal_molecule = crystal.molecule
         crystal_atoms = _validated_atoms(crystal_molecule)
         _validate_min_distance(crystal_atoms)
 
         # Save as mol2.
         ccdc.io.MoleculeWriter(mol2_output_path).write(molecule)
-        # CrystalWriter writes the full disordered atom-site table unless the
-        # selected disorder molecule is materialized back into the crystal.
-        # This keeps one active disorder choice while preserving all active
-        # components, including solvent/co-crystal molecules.
-        crystal = hit.crystal
+        # This setter is counterintuitive but necessary: it materializes the
+        # selected disorder molecule into the editable crystal structure.
+        # Without it, CrystalWriter can emit the full disordered atom-site table.
+        # Reduce to P1 after that selection so the CIF already contains the
+        # same full unit-cell expansion that downstream extxyz generation uses.
         crystal.molecule = crystal_molecule
+        crystal = crystal.reduce_symmetry_to_p1()
         ccdc.io.CrystalWriter(cif_output_path).write(crystal)
         _validate_cif_matches_molecule(crystal_atoms, cif_output_path)
         mol_mapping_rows = _molecule_to_cif_mapping(atoms, cif_output_path)
