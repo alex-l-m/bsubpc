@@ -62,7 +62,8 @@ def _validate_no_disordered_heavy_atoms(crystal) -> None:
                 if atom.atomic_symbol != 'H'
             )
     if disordered_heavy_atom_labels:
-        labels = ', '.join(sorted(disordered_heavy_atom_labels)[:10])
+        ellipsis = ', ...' if len(disordered_heavy_atom_labels) > 10 else ''
+        labels = ', '.join(sorted(disordered_heavy_atom_labels)[:10]) + ellipsis
         raise ValueError(f'crystal has disordered heavy atoms: {labels}')
 
 
@@ -150,19 +151,26 @@ def _cif_match_rows(mol_id: str, cif_path: Path) -> list[dict]:
 
 
 _clear_previous_outputs()
-seen = set()
+seen_deposition_numbers = set()
 outrows = []
 mol2_match_rows = []
 cif_match_rows = []
 exclusion_rows = []
 for hit in hits:
     mol_id = hit.identifier
-    if mol_id in seen:
-        continue
-    seen.add(mol_id)
     mol2_output_path = mol2_output_dir / f'{mol_id}.mol2'
     cif_output_path = cif_output_dir / f'{mol_id}.cif'
     try:
+        entry = hit.entry
+        deposition_number = entry.ccdc_number
+        # CCDC calls Entry.ccdc_number the deposition number. It is distinct
+        # from the six-letter CSD refcode, and is sometimes associated with
+        # multiple entries with different refcodes.
+        # De-duplicate after successful extraction, not before, so a failed
+        # refcode does not suppress a later related hit that would work.
+        if deposition_number is not None and deposition_number in seen_deposition_numbers:
+            continue
+
         molecule = hit.match_components()[0]
         # Rematch the component that will be written to mol2 so mol2_atom_idx
         # refers to the output molecule's atom order, not the parent CSD entry.
@@ -206,6 +214,7 @@ for hit in hits:
     outrow = {
         # Original search_results.csv columns.
         'mol_id': mol_id,
+        'ccdc_number': deposition_number,
         'formal_charge': formal_charge,
         'mol2_path': str(mol2_output_path),
         'cif_path': str(cif_output_path),
@@ -220,6 +229,8 @@ for hit in hits:
     outrows.append(outrow)
     mol2_match_rows.extend(mol2_match_rows_for_hit)
     cif_match_rows.extend(cif_match_rows_for_hit)
+    if deposition_number is not None:
+        seen_deposition_numbers.add(deposition_number)
 
 outdf = pd.DataFrame(outrows)
 outdf.to_csv('search_results.csv', index=False)
