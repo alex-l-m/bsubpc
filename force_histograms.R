@@ -2,6 +2,16 @@ library(tidyverse)
 library(cowplot)
 theme_set(theme_cowplot() + theme(plot.background = element_rect(fill = 'white')))
 
+bsubpc_cif_match_indices <- read_csv('bsubpc_cif_match_indices.csv', col_types = cols(
+    mol_id = col_character(),
+    cif_match_idx = col_double(),
+    bsubpc_idx = col_double(),
+    bsubpc_label = col_character(),
+    cif_atom_idx = col_double(),
+    atom_site_label = col_character(),
+    element = col_character()
+))
+
 forces <- read_csv('forces.csv', col_types = cols( 
     inpath = col_character(), 
     dirname = col_character(), 
@@ -15,19 +25,63 @@ forces <- read_csv('forces.csv', col_types = cols(
     fx = col_double(), 
     fy = col_double(), 
     fz = col_double() 
-)) 
+)) |>
+    mutate(`|f|` = sqrt(fx^2 + fy^2 + fz^2)) |>
+    left_join(bsubpc_cif_match_indices, by = c('mol_id', atom_id = 'cif_atom_idx', 'element'))
 
-fd_binwdith <- function(x) {
+stopifnot(all(forces$frame == 0)) # Only one frame per molecule, so we can ignore the frame column
+
+
+
+fd_binwidth <- function(x) {
     2 * IQR(x) / length(x)^(1/3)
 }
+# Units are eV/angstrom
+force_labs <- labs(x = 'Force (eV/angstrom)', y = 'Count')
+force_lims <- coord_cartesian(xlim = c(0, 10))
 # Facet plot for each element
 histograms <- forces |>
-    filter(element %in% c('B', 'C', 'N', 'O')) |>
-    mutate(`|f|` = sqrt(fx^2 + fy^2 + fz^2)) |>
+    filter(dirname == 'crystal_forces') |>
+    filter(element %in% c('B', 'C', 'N', 'O', 'H', 'F')) |>
     ggplot(aes(x = `|f|`)) +
-    facet_wrap(~ element, scales = 'free') +
-    geom_histogram(binwidth = fd_binwdith) +
-    # Units are eV/angstrom
-    labs(x = 'Force (eV/angstrom)', y = 'Count', title = 'Distribution of atomic forces')
+    facet_wrap(~ element, scales = 'free_y') +
+    geom_histogram(binwidth = fd_binwidth) +
+    force_labs + force_lims +
+    ggtitle('Force histograms by element for crystal positions')
 
-ggsave('force_histograms.png', histograms, width = 10, height = 6)
+ggsave('force_histograms_by_element.png', histograms, width = 10, height = 6)
+
+histograms <- forces |>
+    filter(dirname == 'crystal_forces_h_optimized') |>
+    filter(element %in% c('B', 'C', 'N', 'O', 'H', 'F')) |>
+    ggplot(aes(x = `|f|`)) +
+    facet_wrap(~ element, scales = 'free_y') +
+    geom_histogram(binwidth = fd_binwidth) +
+    force_labs + force_lims +
+    ggtitle('Force histograms by element after optimizing H positions')
+
+ggsave('force_histograms_by_element_h_optimized.png', histograms, width = 10, height = 6)
+
+# Now instead of breaking it down by element, breaking it down by the special
+# template positions in the bsubpc label column
+histograms <- forces |>
+    filter(!is.na(bsubpc_label)) |>
+    filter(dirname == 'crystal_forces') |>
+    ggplot(aes(x = `|f|`)) +
+    facet_wrap(~ bsubpc_label, scales = 'free_y') +
+    geom_histogram(binwidth = fd_binwidth) +
+    force_labs + force_lims +
+    ggtitle('Force histograms by template position for crystal positions')
+
+ggsave('force_histograms_by_template_position.png', histograms, width = 10, height = 6)
+
+histograms <- forces |>
+    filter(!is.na(bsubpc_label)) |>
+    filter(dirname == 'crystal_forces_h_optimized') |>
+    ggplot(aes(x = `|f|`)) +
+    facet_wrap(~ bsubpc_label, scales = 'free_y') +
+    geom_histogram(binwidth = fd_binwidth) +
+    force_labs + force_lims +
+    ggtitle('Force histograms by template position after optimizing H positions')
+
+ggsave('force_histograms_by_template_position_h_optimized.png', histograms, width = 10, height = 6)
