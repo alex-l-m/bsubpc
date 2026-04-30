@@ -10,7 +10,11 @@ bsubpc_cif_match_indices <- read_csv('bsubpc_cif_match_indices.csv', col_types =
     cif_atom_idx = col_double(),
     atom_site_label = col_character(),
     element = col_character()
-))
+)) |>
+    # Get a category by stripping the underscore and digit off the end of the
+    # BsubPc template label
+    # Only the boron category doesn't have this
+    mutate(bsubpc_category = str_replace(bsubpc_label, "_[0-9]+$", ""))
 
 forces <- read_csv('forces.csv', col_types = cols( 
     inpath = col_character(), 
@@ -63,12 +67,12 @@ histograms <- forces |>
 ggsave('force_histograms_by_element_h_optimized.png', histograms, width = 10, height = 6)
 
 # Now instead of breaking it down by element, breaking it down by the special
-# template positions in the bsubpc label column
+# template positions in the bsubpc category column
 histograms <- forces |>
-    filter(!is.na(bsubpc_label)) |>
+    filter(!is.na(bsubpc_category)) |>
     filter(dirname == 'crystal_forces') |>
     ggplot(aes(x = `|f|`)) +
-    facet_wrap(~ bsubpc_label, scales = 'free_y') +
+    facet_wrap(~ bsubpc_category, scales = 'free_y') +
     geom_histogram(binwidth = fd_binwidth) +
     force_labs + force_lims +
     ggtitle('Force histograms by template position for crystal positions')
@@ -76,10 +80,10 @@ histograms <- forces |>
 ggsave('force_histograms_by_template_position.png', histograms, width = 10, height = 6)
 
 histograms <- forces |>
-    filter(!is.na(bsubpc_label)) |>
+    filter(!is.na(bsubpc_category)) |>
     filter(dirname == 'crystal_forces_h_optimized') |>
     ggplot(aes(x = `|f|`)) +
-    facet_wrap(~ bsubpc_label, scales = 'free_y') +
+    facet_wrap(~ bsubpc_category, scales = 'free_y') +
     geom_histogram(binwidth = fd_binwidth) +
     force_labs + force_lims +
     ggtitle('Force histograms by template position after optimizing H positions')
