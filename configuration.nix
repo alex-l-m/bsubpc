@@ -71,6 +71,8 @@ let
     dbus
     libGL
   ];
+
+  runtimeLibraryPath = lib.makeLibraryPath runtimeLibs;
 in
 {
   # Same basic VM shape as the nix.dev tutorial.
@@ -168,6 +170,13 @@ in
     # builds.
     UV_PYTHON_DOWNLOADS = "never";
     UV_PYTHON_PREFERENCE = "only-system";
+
+    # nix-ld uses NIX_LD_LIBRARY_PATH for generic unpatched executables, but
+    # binary Python wheels imported by uv's venv still go through the normal
+    # dynamic loader path. Export the same runtime closure as LD_LIBRARY_PATH so
+    # wheels such as numpy can find libstdc++.so.6, libz.so.1, etc.
+    NIX_LD_LIBRARY_PATH = runtimeLibraryPath;
+    LD_LIBRARY_PATH = runtimeLibraryPath;
 
     # CCDC Python API on a headless VM.
     #
