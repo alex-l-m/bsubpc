@@ -238,6 +238,9 @@ in
       pkgs.uv
       pythonForUv
 
+      # R
+      pkgs.R
+
       pkgs.codex
     ];
 
