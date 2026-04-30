@@ -7,10 +7,10 @@ import ase.io
 inpaths = sys.argv[1:]
 
 outpath = f'forces.csv'
+first = True
 for inpath in inpaths:
     head, tail = os.path.split(inpath)
     basename, ext = os.path.splitext(tail)
-    first = True
     for i, atoms in enumerate(ase.io.iread(inpath, index=':', format='extxyz')):
         positions = atoms.get_positions()
         forces = atoms.get_forces()
@@ -30,4 +30,3 @@ for inpath in inpaths:
         })
         df.to_csv(outpath, index=False, mode='w' if first else 'a', header=first)
         first = False
-
