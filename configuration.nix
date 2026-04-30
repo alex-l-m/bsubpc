@@ -18,7 +18,12 @@ let
   runtimeLibs = with pkgs; [
     # C/C++ runtime.
     stdenv.cc.cc.lib  # libstdc++.so.6, libgcc_s.so.1
+    gfortran.cc.lib   # libgfortran.so.5 for Fortran-backed extensions
     glibc
+
+    # Linear algebra runtime for source-built tblite.
+    blas
+    lapack
 
     # Common compression / crypto / database / FFI libraries.
     zlib
@@ -73,6 +78,7 @@ let
   ];
 
   runtimeLibraryPath = lib.makeLibraryPath runtimeLibs;
+  buildLibraryPath = lib.makeLibraryPath (with pkgs; [ blas lapack ]);
 in
 {
   # Same basic VM shape as the nix.dev tutorial.
@@ -171,12 +177,15 @@ in
     UV_PYTHON_DOWNLOADS = "never";
     UV_PYTHON_PREFERENCE = "only-system";
 
-    # nix-ld uses NIX_LD_LIBRARY_PATH for generic unpatched executables, but
-    # binary Python wheels imported by uv's venv still go through the normal
-    # dynamic loader path. Export the same runtime closure as LD_LIBRARY_PATH so
-    # wheels such as numpy can find libstdc++.so.6, libz.so.1, etc.
-    NIX_LD_LIBRARY_PATH = runtimeLibraryPath;
+    # programs.nix-ld owns NIX_LD_LIBRARY_PATH on current NixOS and points it at
+    # /run/current-system/sw/share/nix-ld/lib. Binary Python wheels imported by
+    # uv's venv still go through the normal dynamic loader path, so export the
+    # same runtime closure as LD_LIBRARY_PATH for new shells.
     LD_LIBRARY_PATH = runtimeLibraryPath;
+
+    # tblite is built from source by uv; Meson's cc.find_library needs these
+    # libraries on the compiler search path.
+    LIBRARY_PATH = buildLibraryPath;
 
     # CCDC Python API on a headless VM.
     #

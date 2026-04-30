@@ -12,3 +12,13 @@ dependencies = [
     "scipy>=1.17.1",
     "tblite>=0.5.0",
 ]
+
+[tool.uv]
+# The tblite manylinux wheel has unresolved runtime-library symbols on this
+# NixOS VM. Build only tblite from source; keep wheels for the rest.
+no-binary-package = ["tblite"]
+
+[tool.uv.extra-build-variables]
+# The source build emits glibc vector-math calls but does not add libmvec to
+# the extension's NEEDED entries unless it is linked explicitly.
+tblite = { LDFLAGS = "-lmvec" }
