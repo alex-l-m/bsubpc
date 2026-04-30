@@ -3,36 +3,12 @@ import re
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolFromSmarts
 
+from bsubpc_match import TEMPLATE_ATOM_INDEX, TEMPLATE_ATOM_LABELS, TEMPLATE_SMARTS
 
-TEMPLATE_SMARTS = (
-    "[#5]12-[#7]3:[#6]4:[#6]5:[#6](:[#6]:[#6]:[#6]:[#6]:5):[#6]:3-"
-    "[#7]=[#6]3:[#6]5:[#6](:[#6]:[#6]:[#6]:[#6]:5):[#6](:[#7]:3-1)="
-    "[#7]-[#6]1=[#7]~2-[#6](-[#6]2:[#6]-1:[#6]:[#6]:[#6]:[#6]:2)=[#7]-4"
-).replace(":", "~").replace("=", "~").replace("-", "~")
 TEMPLATE = MolFromSmarts(TEMPLATE_SMARTS)
 
 
-TEMPLATE_ATOM_LABELS = {
-    0: "boron",
-    1: "pyrrole_nitrogen_1",
-    19: "pyrrole_nitrogen_2",
-    22: "pyrrole_nitrogen_3",
-    10: "imine_nitrogen_1",
-    20: "imine_nitrogen_2",
-    30: "imine_nitrogen_3",
-    6: "outer_terminal_carbon_1",
-    7: "outer_terminal_carbon_2",
-    15: "outer_terminal_carbon_3",
-    16: "outer_terminal_carbon_4",
-    27: "outer_terminal_carbon_5",
-    28: "outer_terminal_carbon_6",
-}
-
-
 CATEGORY_REGEX = re.compile(r"^(.*)_\d+$")
-
-
-TEMPLATE_ATOM_INDEX = {label: index for index, label in TEMPLATE_ATOM_LABELS.items()}
 
 
 def label_core_atoms(mol: Mol) -> None:
