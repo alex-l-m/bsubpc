@@ -1,4 +1,5 @@
 '''Search the Cambridge Crystallography Database for BsubPc's and save them as mol2 and CIF files.'''
+import argparse
 import math
 from pathlib import Path
 import pandas as pd
@@ -13,16 +14,48 @@ MIN_CRYSTAL_DISTANCE = 0.5
 MOL2_MATCH_PATH = Path('bsubpc_mol2_match_indices.csv')
 CIF_MATCH_PATH = Path('bsubpc_cif_match_indices.csv')
 
-# Create a search based on the smarts string
-subpc_search = ccdc.search.SubstructureSearch()
-subpc_search.add_substructure(template_substructure)
+
+def _parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        '--prefix-filter',
+        help='Only search CSD refcodes starting with this prefix; intended for quick testing.',
+    )
+    return parser.parse_args()
+
+
+def _new_subpc_search(filter_disordered_heavy_atoms: bool = False):
+    """Create the BsubPc substructure search used for CSD and local matching."""
+    search = ccdc.search.SubstructureSearch()
+    search.add_substructure(template_substructure)
+    if filter_disordered_heavy_atoms:
+        # CCDC documents this setting as filtering structures with heavy atom
+        # disorder. This uses CCDC's database-level disorder metadata, so
+        # flagged entries are removed before the slower per-hit processing.
+        search.settings.no_disorder = 'Non-hydrogen'
+    return search
+
+
+subpc_search = _new_subpc_search()
+
+
+def _search_hits(prefix_filter: str | None):
+    """Run the CSD search, optionally constraining the CSD query by refcode prefix."""
+    search = _new_subpc_search(filter_disordered_heavy_atoms=True)
+    if prefix_filter:
+        prefix_search = ccdc.search.TextNumericSearch()
+        # TextNumericSearch supports STARTS_WITH via mode='start', so the
+        # prefix restriction is applied in the CSD query rather than after the
+        # expensive substructure search.
+        prefix_search.add_identifier(prefix_filter.upper(), mode='start')
+        search = ccdc.search.CombinedSearch(search & prefix_search)
+    return search.search()
 
 # Execute search and save mol2 files, CIF files, and match index tables.
 mol2_output_dir = Path('csd_molecules')
 mol2_output_dir.mkdir(exist_ok=True)
 cif_output_dir = Path('csd_crystals')
 cif_output_dir.mkdir(exist_ok=True)
-hits = subpc_search.search()
 
 
 def _clear_previous_outputs() -> None:
@@ -48,27 +81,11 @@ def _validated_atoms(molecule):
     return atoms
 
 
-def _validate_no_disordered_heavy_atoms(crystal) -> None:
-    """Reject crystal structures with any non-hydrogen disorder-group atoms."""
-    if not crystal.has_disorder:
-        return
-
-    disordered_heavy_atom_labels = set()
-    for assembly in crystal.disorder.assemblies:
-        for group in assembly.groups:
-            disordered_heavy_atom_labels.update(
-                atom.label
-                for atom in group.atoms
-                if atom.atomic_symbol != 'H'
-            )
-    if disordered_heavy_atom_labels:
-        ellipsis = ', ...' if len(disordered_heavy_atom_labels) > 10 else ''
-        labels = ', '.join(sorted(disordered_heavy_atom_labels)[:10]) + ellipsis
-        raise ValueError(f'crystal has disordered heavy atoms: {labels}')
-
-
 def _validate_min_distance(atoms) -> None:
     """Reject active crystal contents with impossible close contacts."""
+    # This is an absolute coordinate-distance cutoff. Crystal.contacts() is a
+    # VdW-corrected nonbonded contact search, so it cannot express this exact
+    # sub-angstrom sanity check directly.
     min_distance = math.inf
     closest_labels = None
     for i, atom_i in enumerate(atoms):
@@ -150,6 +167,8 @@ def _cif_match_rows(mol_id: str, cif_path: Path) -> list[dict]:
     return rows
 
 
+args = _parse_args()
+hits = _search_hits(args.prefix_filter)
 _clear_previous_outputs()
 seen_deposition_numbers = set()
 outrows = []
@@ -177,7 +196,6 @@ for hit in hits:
         component_match_atoms = _single_component_match_atoms(molecule)
         _validated_atoms(molecule)
         crystal = hit.crystal
-        _validate_no_disordered_heavy_atoms(crystal)
         # crystal.molecule is the CSD-selected disorder state, not necessarily
         # the same as the crystal's editable molecule used by CrystalWriter.
         crystal_molecule = crystal.molecule
