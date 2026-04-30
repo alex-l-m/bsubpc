@@ -25,9 +25,10 @@ Dump TWO graph-like representations from the CSD Python API into CSV tables:
 
 Outputs
 -------
-Writes 6 CSVs into out_dir (default: csd_tables/):
+Writes 7 CSVs into out_dir (default: csd_tables/):
 
   csd_diagrams.csv
+  csd_diagram_checks.csv
   csd_diagram_atoms.csv
   csd_diagram_bonds.csv
 
@@ -75,6 +76,7 @@ def main():
     reader = ccdc.io.EntryReader("CSD")
 
     diagram_rows = []
+    diagram_check_rows = []
     diagram_atom_rows = []
     diagram_bond_rows = []
 
@@ -91,7 +93,15 @@ def main():
         cdv = entry._entry.chemical_diagram_views()
         d = cdv.diagram()
         n_views = count_diagram_views(cdv)
-
+        active_mol = entry.crystal.molecule
+        disordered_mol = entry.crystal.disordered_molecule
+        diagram_check_status = "ok"
+        diagram_check_reasons = []
+        if d.natoms() != len(active_mol.atoms):
+            diagram_check_status = "failed"
+            diagram_check_reasons.append(
+                f"diagram atom count {d.natoms()} != selected crystal molecule atom count {len(active_mol.atoms)}"
+            )
         diagram_rows.append(
             {
                 "csd_refcode": refcode,
@@ -104,6 +114,24 @@ def main():
                 "diagram_n_repeat_groups": d.n_repeat_groups(),
                 "diagram_n_formula_groups": d.n_formula_groups(),
                 "diagram_n_views": n_views,
+            }
+        )
+        # This atom-count check uses crystal.molecule because search.py writes
+        # the selected disorder molecule back into the crystal before writing
+        # CIFs. That is the structure used downstream; disordered_molecule can
+        # include mutually exclusive disorder alternatives that we do not want
+        # in the force inputs.
+        diagram_check_rows.append(
+            {
+                "csd_refcode": refcode,
+                "status": diagram_check_status,
+                "reason": "; ".join(diagram_check_reasons),
+                "diagram_natoms": d.natoms(),
+                "diagram_nbonds": d.nbonds(),
+                "active_molecule_natoms": len(active_mol.atoms),
+                "active_molecule_nbonds": len(active_mol.bonds),
+                "disordered_molecule_natoms": len(disordered_mol.atoms),
+                "disordered_molecule_nbonds": len(disordered_mol.bonds),
             }
         )
 
@@ -143,7 +171,7 @@ def main():
         # (B) Molecule tables
         # -----------------------------
         # Per your preference: crystal.molecule is fine; key is NOT to use disordered_molecule.
-        mol = entry.crystal.molecule
+        mol = active_mol
 
         mol_rows.append(
             {
@@ -197,8 +225,9 @@ def main():
                 }
             )
 
-    # Write all 6 tables
+    # Write all output tables
     pd.DataFrame(diagram_rows).to_csv(os.path.join(outdir, "csd_diagrams.csv"), index=False)
+    pd.DataFrame(diagram_check_rows).to_csv(os.path.join(outdir, "csd_diagram_checks.csv"), index=False)
     pd.DataFrame(diagram_atom_rows).to_csv(os.path.join(outdir, "csd_diagram_atoms.csv"), index=False)
     pd.DataFrame(diagram_bond_rows).to_csv(os.path.join(outdir, "csd_diagram_bonds.csv"), index=False)
 
