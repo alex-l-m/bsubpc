@@ -1,4 +1,5 @@
 run_csd_python_api search.py
+run_csd_python_api check_csd_match_indices.py
+uv run python check_rdkit_match_indices.py
 run_csd_python_api extract_csd_diagram_and_molecule_tables.py search_results.csv csd_tables
 uv run python process_search_results.py
-uv run python verify_atom_mapping.py
