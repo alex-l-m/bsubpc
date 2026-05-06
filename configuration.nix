@@ -234,6 +234,10 @@ in
       pkgs.patchelf
       pkgs.strace
 
+      # `magick montage` for compositing the per-molecule tiles emitted
+      # by gap_grid.py into one PNG (see gap_grid.sh).
+      pkgs.imagemagick
+
       # Build tools useful when Python/R packages need compilation.
       pkgs.pkg-config
       pkgs.gcc
