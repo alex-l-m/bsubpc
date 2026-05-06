@@ -6,6 +6,49 @@ let
   # per-project with uv, not installed globally through Nix.
   pythonForUv = pkgs.python312;
 
+  # The Grimme-lab xtb4stda + stda binaries are not in nixpkgs, but the
+  # statically-linked Linux binaries on GitHub run as-is on NixOS. Wrap them
+  # so XTB4STDAHOME points at the parameter files bundled in the source repo.
+  xtb4stdaParams = pkgs.fetchFromGitHub {
+    owner = "grimme-lab";
+    repo = "xtb4stda";
+    rev = "3b3d690d3726a1d16515a56cae14babf77bdcb5b";
+    hash = "sha256-hDYgi6+QIJYmrsXDHWJdO2DCFrI91HoJ7oHsOSGLOY8=";
+  };
+  xtb4stdaBin = pkgs.fetchurl {
+    url = "https://github.com/grimme-lab/xtb4stda/releases/download/v1.0/xtb4stda";
+    hash = "sha256-fs5be4lZqKQGdwn23yNIDrMCxI5XogsddzZ8djNtMCs=";
+  };
+  stdaBin = pkgs.fetchurl {
+    url = "https://github.com/grimme-lab/std2/releases/download/v1.6.3/stda_v1.6.3";
+    hash = "sha256-lwHx0I553VYPRPuuYdEm6qzZROuPZ/ygggYhuQAzr4A=";
+  };
+  xtb4stda = pkgs.stdenvNoCC.mkDerivation {
+    pname = "xtb4stda";
+    version = "1.0-stda1.6.3";
+    dontUnpack = true;
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    installPhase = ''
+      mkdir -p $out/bin $out/share/xtb4stda
+      install -m 0755 ${xtb4stdaBin} $out/bin/.xtb4stda-unwrapped
+      install -m 0755 ${stdaBin} $out/bin/.stda-unwrapped
+      install -m 0644 ${xtb4stdaParams}/.param_stda1.xtb $out/share/xtb4stda/
+      install -m 0644 ${xtb4stdaParams}/.param_stda2.xtb $out/share/xtb4stda/
+      install -m 0644 ${xtb4stdaParams}/.xtb4stdarc $out/share/xtb4stda/
+      for gbsa in ${xtb4stdaParams}/.param_gbsa_*; do
+        install -m 0644 "$gbsa" $out/share/xtb4stda/
+      done
+      # The xtb4stda binary uses a Fortran fixed-length string buffer for
+      # XTB4STDAHOME (~80 chars), which truncates a /nix/store/.../share/xtb4stda
+      # path. The wrappers default XTB4STDAHOME to /etc/xtb4stda — populated
+      # below with environment.etc — so the runtime path stays short.
+      makeWrapper $out/bin/.xtb4stda-unwrapped $out/bin/xtb4stda \
+        --set-default XTB4STDAHOME /etc/xtb4stda
+      makeWrapper $out/bin/.stda-unwrapped $out/bin/stda \
+        --set-default XTB4STDAHOME /etc/xtb4stda
+    '';
+  };
+
   # CCDC install location used by the installer script.
   ccdcPrefix = "/opt/CCDC";
   ccdcPythonApiDir = "${ccdcPrefix}/ccdc-software/csd-python-api";
@@ -170,6 +213,10 @@ in
     libraries = runtimeLibs;
   };
 
+  # xtb4stda needs its parameter files in a directory short enough to fit in
+  # its Fortran path buffer. /etc/xtb4stda symlinks into the nix store copy.
+  environment.etc."xtb4stda".source = "${xtb4stda}/share/xtb4stda";
+
   environment.sessionVariables = {
     # Let uv manage project environments, but make it use the nixpkgs Python
     # already installed in this VM rather than downloading generic Python
@@ -238,6 +285,10 @@ in
       # by gap_grid.py into one PNG (see gap_grid.sh).
       pkgs.imagemagick
 
+      # `xtb4stda` + `stda` binaries (Grimme-lab) used by stda_pipeline.sh.
+      # See the let-binding above for how XTB4STDAHOME is wired up.
+      xtb4stda
+
       # Build tools useful when Python/R packages need compilation.
       pkgs.pkg-config
       pkgs.gcc
@@ -251,8 +302,23 @@ in
       pkgs.uv
       pythonForUv
 
-      # R
-      pkgs.R
+      # R + the packages used by the analysis scripts (tidyverse for the bulk
+      # of plotting, ggrepel for label placement in compare_stda.R, etc.).
+      # `ggdark` is currently flagged broken in nixpkgs; compare_stda.R is
+      # patched to drop the dark theme so we don't need it. Build the full
+      # set with `nixos-rebuild test --max-jobs 1` to fit the small tmpfs
+      # nix store on this VM.
+      (pkgs.rWrapper.override {
+        packages = with pkgs.rPackages; [
+          tidyverse
+          cowplot
+          ggrepel
+          robustbase
+          tidymodels
+          glue
+          matsindf
+        ];
+      })
 
       pkgs.codex
     ];
