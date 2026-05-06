@@ -16,11 +16,17 @@ def log2energy(stda_log):
         # the energy and the wavelength. Therefore the regex can't use * at the
         # end, it has to actually count digits
         match_string = r"\s*1\s*([0-9]*\.[0-9][0-9]?[0-9]?)"
-        # Section heading
-        if "excitation energies, transition moments and TDA amplitudes" in line:
+        # Section heading. Newer / large-molecule sTDA runs print the section
+        # heading with the singular "excitation energy"; older / small-molecule
+        # runs print plural "excitation energies".
+        if (
+            "excitation energies, transition moments and TDA amplitudes" in line
+            or "excitation energy, transition moments and TDA amplitudes" in line
+        ):
             right_part = True
+            continue
         if line.strip() == "":
-            right_part = False
+            continue
         energy_match = re.match(match_string, line)
         if right_part and energy_match is not None:
             return float(energy_match.group(1))
