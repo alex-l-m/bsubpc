@@ -1,7 +1,7 @@
 library(tidyverse)
 library(tidymodels)
 library(cowplot)
-theme_set(theme_cowplot())
+theme_set(theme_cowplot() + theme(plot.background = element_rect(fill = 'white')))
 library(ggrepel)
 library(robustbase)
 
@@ -56,5 +56,5 @@ stda_comparison_plot <- comparison_table |>
     ggplot(aes(y = stda_excitation_energy, x = gap, label = mol_id)) +
     geom_point() +
     geom_smooth(method = lmrob, se = FALSE) +
-    geom_label_repel(color = 'black', fill = 'white')
+    geom_label_repel()
 ggsave('stda_comparison_plot.png', stda_comparison_plot, width = unit(12, 'in'), height = unit(6, 'in'))
