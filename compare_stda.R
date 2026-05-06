@@ -1,12 +1,11 @@
 library(tidyverse)
 library(tidymodels)
 library(cowplot)
-library(ggdark)
-theme_set(dark_mode(theme_cowplot(font_size = 24)))
+theme_set(theme_cowplot())
 library(ggrepel)
 library(robustbase)
 
-paper_table <- read_csv('~/databases/subpc_calibration_paper/table1.csv', col_types = cols(
+paper_table <- read_csv('table1.csv', col_types = cols(
     mol_id = col_character(),
     film_homo = col_double(),
     avg_film_homo = col_double(),
@@ -29,7 +28,7 @@ experiment_homolumo <- paper_table |>
     ) |>
     ungroup()
 
-csd_matches <- read_csv('~/databases/subpc_calibration_paper/csd_matches.csv', col_types = cols(
+csd_matches <- read_csv('csd_matches.csv', col_types = cols(
     mol_id = col_character(),
     entry = col_character()
 ))
@@ -57,5 +56,5 @@ stda_comparison_plot <- comparison_table |>
     ggplot(aes(y = stda_excitation_energy, x = gap, label = mol_id)) +
     geom_point() +
     geom_smooth(method = lmrob, se = FALSE) +
-    geom_label_repel(color = 'white', fill = 'black')
+    geom_label_repel(color = 'black', fill = 'white')
 ggsave('stda_comparison_plot.png', stda_comparison_plot, width = unit(12, 'in'), height = unit(6, 'in'))
