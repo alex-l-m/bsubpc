@@ -56,5 +56,9 @@ stda_comparison_plot <- comparison_table |>
     ggplot(aes(y = stda_excitation_energy, x = gap, label = mol_id)) +
     geom_point() +
     geom_smooth(method = lmrob, se = FALSE) +
-    geom_label_repel()
+    geom_label_repel() +
+    # Axis labels
+    xlab('Experimental HOMO-LUMO gap (eV)') +
+    ylab('sTDA predicted excitation energy (eV)')
+    
 ggsave('stda_comparison_plot.png', stda_comparison_plot, width = unit(12, 'in'), height = unit(6, 'in'))
