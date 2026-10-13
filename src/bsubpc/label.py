@@ -3,7 +3,7 @@ import re
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolFromSmarts
 
-from bsubpc_match import TEMPLATE_ATOM_INDEX, TEMPLATE_ATOM_LABELS, TEMPLATE_SMARTS
+from .strings import TEMPLATE_ATOM_INDEX, TEMPLATE_ATOM_LABELS, TEMPLATE_SMARTS
 
 TEMPLATE = MolFromSmarts(TEMPLATE_SMARTS)
 

@@ -15,7 +15,7 @@ import numpy as np
 from rdkit.Chem.rdchem import Mol
 from scipy.spatial.transform import Rotation
 
-from match import label_core_atoms, assert_labeled
+from .label import label_core_atoms, assert_labeled
 
 
 VERTICAL_AXIS = np.array([0.0, 0.0, 1.0])
@@ -102,7 +102,7 @@ def fix_core_handedness(mol):
             pos[:, 1] *= -1.0
             _set_positions(conformer, pos)
 
-def canonicalize_bsubpc(mol: Mol) -> None:
+def canonicalize(mol: Mol) -> None:
     """Label, center, and rotate ``mol`` into the canonical BsubPc frame in-place."""
     label_core_atoms(mol)
     center_on_boron(mol)
