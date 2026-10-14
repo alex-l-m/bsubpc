@@ -14,18 +14,20 @@ labelings rather than by reflecting, so chirality is preserved.
 """
 
 import numpy as np
-from rdkit.Chem.rdchem import Mol
+from numpy.typing import NDArray
+from rdkit.Chem.rdchem import Conformer, Mol
 from scipy.spatial.transform import Rotation
 
-from .label import label_core_atoms, assert_labeled
+from .label import Match, assert_labeled, label_core_atoms
 from .strings import TEMPLATE_ATOM_INDEX
 
+type Positions = NDArray[np.float64]
+"""An (n, 3) array of atom coordinates."""
 
 VERTICAL_AXIS = np.array([0.0, 0.0, 1.0])
 REFERENCE_LABEL = "pyrrole_nitrogen_1"
 HANDED_LABEL = "pyrrole_nitrogen_3"
 BORON_LABEL = "boron"
-
 
 
 def _atom_index_by_label(mol: Mol, label: str) -> int:
@@ -39,7 +41,11 @@ def _core_atom_indices(mol: Mol) -> list[int]:
     return [atom.GetIdx() for atom in mol.GetAtoms() if atom.HasProp("bsubpc_idx")]
 
 
-def _set_positions(conformer, pos: np.ndarray) -> None:
+def _positions(conformer: Conformer) -> Positions:
+    return conformer.GetPositions()
+
+
+def _set_positions(conformer: Conformer, pos: Positions) -> None:
     for atom_index, xyz in enumerate(pos):
         conformer.SetAtomPosition(atom_index, xyz)
 
@@ -49,7 +55,7 @@ def center_on_boron(mol: Mol) -> None:
     assert_labeled(mol)
     boron_idx = _atom_index_by_label(mol, BORON_LABEL)
     for conformer in mol.GetConformers():
-        pos = conformer.GetPositions()
+        pos = _positions(conformer)
         _set_positions(conformer, pos - pos[boron_idx])
 
 
@@ -58,24 +64,23 @@ def assert_centered(mol: Mol) -> None:
     assert_labeled(mol)
     boron_idx = _atom_index_by_label(mol, BORON_LABEL)
     for conformer in mol.GetConformers():
-        boron_pos = np.asarray(conformer.GetAtomPosition(boron_idx), dtype=float)
-        if not np.allclose(boron_pos, np.zeros(3)):
+        if not np.allclose(_positions(conformer)[boron_idx], 0.0):
             raise ValueError("molecule is not centered on boron")
 
 
-def vertical_axis_from_pos(pos: np.ndarray) -> np.ndarray:
+def vertical_axis_from_pos(pos: Positions) -> Positions:
     """Return the unit normal to the best-fit plane of centered core positions, pointing away from the bowl."""
-    _, _, vh = np.linalg.svd(np.asarray(pos, dtype=float), full_matrices=False)
+    _, _, vh = np.linalg.svd(pos, full_matrices=False)
     axis = vh[-1] / np.linalg.norm(vh[-1])
     return -axis if np.mean(pos @ axis) > 0 else axis
 
 
-def _is_right_handed(pos: np.ndarray, match: tuple[int, ...]) -> bool:
+def _is_right_handed(pos: Positions, match: Match) -> bool:
     """Whether ``match`` labels the core so that N1 -> N3 runs counterclockwise seen from +z."""
     core = pos[list(match)] - pos[match[0]]
     n1 = core[TEMPLATE_ATOM_INDEX[REFERENCE_LABEL]]
     n3 = core[TEMPLATE_ATOM_INDEX[HANDED_LABEL]]
-    return np.cross(n1, n3) @ vertical_axis_from_pos(core) > 0
+    return bool(np.cross(n1, n3) @ vertical_axis_from_pos(core) > 0)
 
 
 def rotate_to_vertical(mol: Mol) -> None:
@@ -84,9 +89,9 @@ def rotate_to_vertical(mol: Mol) -> None:
     core_idx = _core_atom_indices(mol)
 
     for conformer in mol.GetConformers():
-        pos = conformer.GetPositions()
+        pos = _positions(conformer)
         axis = vertical_axis_from_pos(pos[core_idx])
-        rotation, _ = Rotation.align_vectors(VERTICAL_AXIS[None, :], axis[None, :])
+        rotation = Rotation.align_vectors(VERTICAL_AXIS[None, :], axis[None, :])[0]
         _set_positions(conformer, rotation.apply(pos))
 
 
@@ -96,18 +101,17 @@ def rotate_around_vertical(mol: Mol) -> None:
     reference_idx = _atom_index_by_label(mol, REFERENCE_LABEL)
 
     for conformer in mol.GetConformers():
-        pos = conformer.GetPositions()
-        reference_xy = np.asarray(pos[reference_idx], dtype=float).copy()
-        reference_xy[2] = 0.0
-        if np.allclose(reference_xy, 0.0):
+        pos = _positions(conformer)
+        x, y, _ = pos[reference_idx]
+        if np.isclose(np.hypot(x, y), 0.0):
             raise ValueError(f"labeled atom {REFERENCE_LABEL!r} lies on the vertical axis")
-        angle = np.arctan2(reference_xy[1], reference_xy[0])
-        rotation = Rotation.from_rotvec(-angle * VERTICAL_AXIS)
+        rotation = Rotation.from_rotvec(-np.arctan2(y, x) * VERTICAL_AXIS)
         _set_positions(conformer, rotation.apply(pos))
+
 
 def canonicalize(mol: Mol) -> None:
     """Label, center, and rotate ``mol`` into the canonical BsubPc frame in-place."""
-    pos = mol.GetConformer().GetPositions()
+    pos = _positions(mol.GetConformer())
     label_core_atoms(mol, accept=lambda match: _is_right_handed(pos, match))
     center_on_boron(mol)
     rotate_to_vertical(mol)

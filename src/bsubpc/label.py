@@ -1,17 +1,18 @@
 """Match and label the BsubPc core atoms."""
-import re
+from collections.abc import Callable
+
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolFromSmarts
 
-from .strings import TEMPLATE_ATOM_INDEX, TEMPLATE_ATOM_LABELS, TEMPLATE_SMARTS
+from .strings import TEMPLATE_ATOM_LABELS, TEMPLATE_SMARTS
 
-TEMPLATE = MolFromSmarts(TEMPLATE_SMARTS)
+TEMPLATE: Mol = MolFromSmarts(TEMPLATE_SMARTS)
+
+type Match = tuple[int, ...]
+"""Molecule atom indices, ordered by the ``TEMPLATE`` query atom they match."""
 
 
-CATEGORY_REGEX = re.compile(r"^(.*)_\d+$")
-
-
-def label_core_atoms(mol: Mol, accept=lambda match: True) -> None:
+def label_core_atoms(mol: Mol, accept: Callable[[Match], bool] = lambda match: True) -> None:
     """Annotate the unique BsubPc core match in-place.
 
     Every matched atom gets a ``bsubpc_idx`` property equal to its query-atom
@@ -21,7 +22,7 @@ def label_core_atoms(mol: Mol, accept=lambda match: True) -> None:
     The core's C3v symmetry gives six ways to assign template indices to the same
     atoms; the first one that ``accept`` approves is used.
     """
-    matches = mol.GetSubstructMatches(TEMPLATE, uniquify=False)
+    matches: tuple[Match, ...] = mol.GetSubstructMatches(TEMPLATE, uniquify=False)
     if len({frozenset(match) for match in matches}) != 1:
         raise ValueError(f"expected exactly one BsubPc core, found {len(matches) // 6}")
     match = next(match for match in matches if accept(match))
