@@ -4,11 +4,13 @@ The canonical frame is defined by three geometric constraints:
 
 * the boron sits at the origin;
 * the bowl lies below the xy plane;
-* the plane through boron, +z, and ``pyrrole_nitrogen_1`` is the xz plane.
+* the plane through boron, +z, and ``pyrrole_nitrogen_1`` is the xz plane;
+* ``pyrrole_nitrogen_3`` has positive y.
 
 The vertical axis is the normal to the best-fit plane of the matched BsubPc core,
 obtained from the smallest right-singular vector of the centered core coordinates.
-No explicit symmetry detection is used.
+The last constraint is met by choosing among the six symmetry-equivalent core
+labelings rather than by reflecting, so chirality is preserved.
 """
 
 import numpy as np
@@ -16,10 +18,12 @@ from rdkit.Chem.rdchem import Mol
 from scipy.spatial.transform import Rotation
 
 from .label import label_core_atoms, assert_labeled
+from .strings import TEMPLATE_ATOM_INDEX
 
 
 VERTICAL_AXIS = np.array([0.0, 0.0, 1.0])
 REFERENCE_LABEL = "pyrrole_nitrogen_1"
+HANDED_LABEL = "pyrrole_nitrogen_3"
 BORON_LABEL = "boron"
 
 
@@ -60,9 +64,18 @@ def assert_centered(mol: Mol) -> None:
 
 
 def vertical_axis_from_pos(pos: np.ndarray) -> np.ndarray:
-    """Return the unit normal to the best-fit plane of centered positions."""
+    """Return the unit normal to the best-fit plane of centered core positions, pointing away from the bowl."""
     _, _, vh = np.linalg.svd(np.asarray(pos, dtype=float), full_matrices=False)
-    return vh[-1] / np.linalg.norm(vh[-1])
+    axis = vh[-1] / np.linalg.norm(vh[-1])
+    return -axis if np.mean(pos @ axis) > 0 else axis
+
+
+def _is_right_handed(pos: np.ndarray, match: tuple[int, ...]) -> bool:
+    """Whether ``match`` labels the core so that N1 -> N3 runs counterclockwise seen from +z."""
+    core = pos[list(match)] - pos[match[0]]
+    n1 = core[TEMPLATE_ATOM_INDEX[REFERENCE_LABEL]]
+    n3 = core[TEMPLATE_ATOM_INDEX[HANDED_LABEL]]
+    return np.cross(n1, n3) @ vertical_axis_from_pos(core) > 0
 
 
 def rotate_to_vertical(mol: Mol) -> None:
@@ -73,8 +86,6 @@ def rotate_to_vertical(mol: Mol) -> None:
     for conformer in mol.GetConformers():
         pos = conformer.GetPositions()
         axis = vertical_axis_from_pos(pos[core_idx])
-        if np.mean(pos[core_idx] @ axis) > 0:
-            axis = -axis
         rotation, _ = Rotation.align_vectors(VERTICAL_AXIS[None, :], axis[None, :])
         _set_positions(conformer, rotation.apply(pos))
 
@@ -94,18 +105,10 @@ def rotate_around_vertical(mol: Mol) -> None:
         rotation = Rotation.from_rotvec(-angle * VERTICAL_AXIS)
         _set_positions(conformer, rotation.apply(pos))
 
-def fix_core_handedness(mol):
-    handed_idx = _atom_index_by_label(mol, "pyrrole_nitrogen_3")
-    for conformer in mol.GetConformers():
-        pos = conformer.GetPositions()
-        if pos[handed_idx, 1] < 0:
-            pos[:, 1] *= -1.0
-            _set_positions(conformer, pos)
-
 def canonicalize(mol: Mol) -> None:
     """Label, center, and rotate ``mol`` into the canonical BsubPc frame in-place."""
-    label_core_atoms(mol)
+    pos = mol.GetConformer().GetPositions()
+    label_core_atoms(mol, accept=lambda match: _is_right_handed(pos, match))
     center_on_boron(mol)
     rotate_to_vertical(mol)
     rotate_around_vertical(mol)
-    fix_core_handedness(mol)
